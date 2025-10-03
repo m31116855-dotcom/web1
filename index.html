@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Публичный Чат</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .messages {
+            height: 400px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            overflow-y: auto;
+            background: #f9f9f9;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .username {
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .time {
+            color: #888;
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background: #5a6fd8;
+        }
+        
+        .login-form {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .login-form input {
+            margin: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <h1>💬 Публичный Чат</h1>
+        
+        <div class="login-form" id="loginForm">
+            <h3>Введите ваше имя для чата:</h3>
+            <input type="text" id="usernameInput" placeholder="Ваше имя" style="width: 300px;">
+            <button onclick="joinChat()">Войти в чат</button>
+        </div>
+        
+        <div id="chatArea" style="display: none;">
+            <div class="messages" id="messagesContainer">
+                <!-- Сообщения будут здесь -->
+            </div>
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." onkeypress="if(event.key=='Enter') sendMessage()">
+                <button onclick="sendMessage()">Отправить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let username = '';
+        let messages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+
+        function joinChat() {
+            const name = document.getElementById('usernameInput').value.trim();
+            if (!name) {
+                alert('Пожалуйста, введите имя!');
+                return;
+            }
+            
+            username = name;
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('chatArea').style.display = 'block';
+            document.getElementById('messageInput').focus();
+            
+            // Показываем историю сообщений
+            displayMessages();
+        }
+
+        function sendMessage() {
+            const text = document.getElementById('messageInput').value.trim();
+            if (!text) return;
+            
+            const message = {
+                id: Date.now(),
+                username: username,
+                text: text,
+                time: new Date().toLocaleTimeString('ru-RU'),
+                date: new Date().toLocaleDateString('ru-RU')
+            };
+            
+            // Сохраняем сообщение
+            messages.push(message);
+            if (messages.length > 100) {
+                messages = messages.slice(-100);
+            }
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('chatMessages', JSON.stringify(messages));
+            
+            // Показываем сообщение
+            displayMessages();
+            
+            // Очищаем поле ввода
+            document.getElementById('messageInput').value = '';
+        }
+
+        function displayMessages() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <span class="username">${msg.username}</span>
+                        <span class="time">${msg.time} ${msg.date}</span>
+                    </div>
+                    <div>${msg.text}</div>
+                `;
+                container.appendChild(messageDiv);
+            });
+            
+            // Прокручиваем вниз
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Показываем историю при загрузке
+        displayMessages();
+    </script>
+</body>
+</html>
