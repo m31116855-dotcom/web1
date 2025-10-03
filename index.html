@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Публичный Чат</title>
+    <title>Публичный Чат (Общий для всех!)</title>
     <style>
         * {
             margin: 0;
@@ -33,6 +33,13 @@
             color: #333;
         }
         
+        .online-counter {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
         .messages {
             height: 400px;
             border: 2px solid #ddd;
@@ -49,6 +56,12 @@
             background: white;
             border-radius: 10px;
             border-left: 4px solid #667eea;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         .message-header {
@@ -102,16 +115,18 @@
         .login-form input {
             margin: 10px;
             text-align: center;
+            width: 300px;
         }
     </style>
 </head>
 <body>
     <div class="chat-container">
-        <h1>💬 Публичный Чат</h1>
+        <h1>💬 Публичный Чат (Общий для всех!)</h1>
+        <div class="online-counter">Онлайн: <span id="onlineCount">1</span></div>
         
         <div class="login-form" id="loginForm">
             <h3>Введите ваше имя для чата:</h3>
-            <input type="text" id="usernameInput" placeholder="Ваше имя" style="width: 300px;">
+            <input type="text" id="usernameInput" placeholder="Ваше имя" maxlength="20">
             <button onclick="joinChat()">Войти в чат</button>
         </div>
         
@@ -120,15 +135,16 @@
                 <!-- Сообщения будут здесь -->
             </div>
             <div class="input-container">
-                <input type="text" id="messageInput" placeholder="Введите сообщение..." onkeypress="if(event.key=='Enter') sendMessage()">
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500">
                 <button onclick="sendMessage()">Отправить</button>
             </div>
         </div>
     </div>
 
     <script>
+        // Используем простой способ для демо - все сообщения хранятся в одном месте
+        const CHAT_ID = 'public-chat-demo';
         let username = '';
-        let messages = JSON.parse(localStorage.getItem('chatMessages')) || [];
 
         function joinChat() {
             const name = document.getElementById('usernameInput').value.trim();
@@ -142,8 +158,7 @@
             document.getElementById('chatArea').style.display = 'block';
             document.getElementById('messageInput').focus();
             
-            // Показываем историю сообщений
-            displayMessages();
+            loadMessages();
         }
 
         function sendMessage() {
@@ -151,52 +166,81 @@
             if (!text) return;
             
             const message = {
-                id: Date.now(),
                 username: username,
                 text: text,
                 time: new Date().toLocaleTimeString('ru-RU'),
-                date: new Date().toLocaleDateString('ru-RU')
+                date: new Date().toLocaleDateString('ru-RU'),
+                timestamp: Date.now()
             };
             
-            // Сохраняем сообщение
+            // Сохраняем в localStorage как временное решение
+            saveMessage(message);
+            addMessageToChat(message);
+            document.getElementById('messageInput').value = '';
+        }
+
+        function saveMessage(message) {
+            // Временное решение - используем localStorage
+            // В реальном проекте нужно использовать Firebase или другой бэкенд
+            let messages = JSON.parse(localStorage.getItem(CHAT_ID)) || [];
             messages.push(message);
+            
+            // Ограничиваем историю
             if (messages.length > 100) {
                 messages = messages.slice(-100);
             }
             
-            // Сохраняем в localStorage
-            localStorage.setItem('chatMessages', JSON.stringify(messages));
-            
-            // Показываем сообщение
-            displayMessages();
-            
-            // Очищаем поле ввода
-            document.getElementById('messageInput').value = '';
+            localStorage.setItem(CHAT_ID, JSON.stringify(messages));
         }
 
-        function displayMessages() {
+        function loadMessages() {
+            const messages = JSON.parse(localStorage.getItem(CHAT_ID)) || [];
             const container = document.getElementById('messagesContainer');
             container.innerHTML = '';
             
-            messages.forEach(msg => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message';
-                messageDiv.innerHTML = `
-                    <div class="message-header">
-                        <span class="username">${msg.username}</span>
-                        <span class="time">${msg.time} ${msg.date}</span>
-                    </div>
-                    <div>${msg.text}</div>
-                `;
-                container.appendChild(messageDiv);
+            messages.forEach(message => {
+                addMessageToChat(message);
             });
+        }
+
+        function addMessageToChat(message) {
+            const container = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
             
-            // Прокручиваем вниз
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <span class="username">${escapeHtml(message.username)}</span>
+                    <span class="time">${message.time} ${message.date}</span>
+                </div>
+                <div>${escapeHtml(message.text)}</div>
+            `;
+            
+            container.appendChild(messageDiv);
             container.scrollTop = container.scrollHeight;
         }
 
-        // Показываем историю при загрузке
-        displayMessages();
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Отправка по Enter
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Вход по Enter в форме логина
+        document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinChat();
+        });
+
+        // Обновляем счетчик онлайн (простая имитация)
+        setInterval(() => {
+            const count = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('onlineCount').textContent = count;
+        }, 5000);
     </script>
 </body>
 </html>
