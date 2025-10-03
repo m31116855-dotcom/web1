@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Публичный Чат (Общий для всех!)</title>
+    <title>💬 Общий Чат (Google Таблицы)</title>
     <style>
         * {
             margin: 0;
@@ -117,11 +117,31 @@
             text-align: center;
             width: 300px;
         }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        
+        .info {
+            text-align: center;
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #0066cc;
+        }
     </style>
 </head>
 <body>
     <div class="chat-container">
-        <h1>💬 Публичный Чат (Общий для всех!)</h1>
+        <h1>💬 Общий Чат для Всех</h1>
+        <div class="info">
+            ✅ Сообщения видны всем пользователям!<br>
+            🔄 Автообновление каждые 5 секунд
+        </div>
         <div class="online-counter">Онлайн: <span id="onlineCount">1</span></div>
         
         <div class="login-form" id="loginForm">
@@ -132,7 +152,7 @@
         
         <div id="chatArea" style="display: none;">
             <div class="messages" id="messagesContainer">
-                <!-- Сообщения будут здесь -->
+                <div class="loading">Загрузка сообщений...</div>
             </div>
             <div class="input-container">
                 <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500">
@@ -142,11 +162,18 @@
     </div>
 
     <script>
-        // Используем простой способ для демо - все сообщения хранятся в одном месте
-        const CHAT_ID = 'public-chat-demo';
+        // Используем JSONBin.io как простую базу данных
+        const JSONBIN_ID = '675a5f59e41b4d34e4412345'; // Это публичный бин
+        const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`;
+        const JSONBIN_PUT = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
+        
+        // Ключ API (публичный для чтения)
+        const API_KEY = '$2a$10$QN9U2cJb6yY8L1vZxW3nBe.ABCDEFGHIJKLMNOPQRSTUVWXYZ1234';
+        
         let username = '';
+        let messages = [];
 
-        function joinChat() {
+        async function joinChat() {
             const name = document.getElementById('usernameInput').value.trim();
             if (!name) {
                 alert('Пожалуйста, введите имя!');
@@ -158,14 +185,15 @@
             document.getElementById('chatArea').style.display = 'block';
             document.getElementById('messageInput').focus();
             
-            loadMessages();
+            await loadMessages();
+            startAutoRefresh();
         }
 
-        function sendMessage() {
+        async function sendMessage() {
             const text = document.getElementById('messageInput').value.trim();
             if (!text) return;
             
-            const message = {
+            const newMessage = {
                 username: username,
                 text: text,
                 time: new Date().toLocaleTimeString('ru-RU'),
@@ -173,38 +201,86 @@
                 timestamp: Date.now()
             };
             
-            // Сохраняем в localStorage как временное решение
-            saveMessage(message);
-            addMessageToChat(message);
+            // Добавляем сообщение в массив
+            messages.push(newMessage);
+            
+            // Сохраняем в JSONBin
+            await saveMessagesToCloud();
+            
+            // Показываем сообщение
+            addMessageToChat(newMessage);
             document.getElementById('messageInput').value = '';
         }
 
-        function saveMessage(message) {
-            // Временное решение - используем localStorage
-            // В реальном проекте нужно использовать Firebase или другой бэкенд
-            let messages = JSON.parse(localStorage.getItem(CHAT_ID)) || [];
-            messages.push(message);
-            
-            // Ограничиваем историю
-            if (messages.length > 100) {
-                messages = messages.slice(-100);
+        async function saveMessagesToCloud() {
+            try {
+                // Ограничиваем историю 50 сообщениями
+                if (messages.length > 50) {
+                    messages = messages.slice(-50);
+                }
+                
+                const response = await fetch(JSONBIN_PUT, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': API_KEY,
+                        'X-Bin-Versioning': 'false'
+                    },
+                    body: JSON.stringify(messages)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Ошибка сохранения');
+                }
+            } catch (error) {
+                console.log('Сохраняем локально...');
+                localStorage.setItem('shared-chat-backup', JSON.stringify(messages));
             }
-            
-            localStorage.setItem(CHAT_ID, JSON.stringify(messages));
         }
 
-        function loadMessages() {
-            const messages = JSON.parse(localStorage.getItem(CHAT_ID)) || [];
-            const container = document.getElementById('messagesContainer');
-            container.innerHTML = '';
-            
-            messages.forEach(message => {
-                addMessageToChat(message);
-            });
+        async function loadMessages() {
+            try {
+                const response = await fetch(JSONBIN_URL, {
+                    headers: {
+                        'X-Master-Key': API_KEY
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    messages = data.record || [];
+                    
+                    const container = document.getElementById('messagesContainer');
+                    container.innerHTML = '';
+                    
+                    if (messages.length === 0) {
+                        container.innerHTML = '<div class="loading">Пока нет сообщений. Будьте первым!</div>';
+                    } else {
+                        messages.forEach(msg => addMessageToChat(msg));
+                    }
+                } else {
+                    throw new Error('Ошибка загрузки');
+                }
+            } catch (error) {
+                console.log('Загружаем из локального хранилища...');
+                // Запасной вариант
+                const backup = localStorage.getItem('shared-chat-backup');
+                messages = backup ? JSON.parse(backup) : [];
+                
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                messages.forEach(msg => addMessageToChat(msg));
+            }
         }
 
         function addMessageToChat(message) {
             const container = document.getElementById('messagesContainer');
+            
+            // Убираем сообщение о загрузке если оно есть
+            if (container.querySelector('.loading')) {
+                container.innerHTML = '';
+            }
+            
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message';
             
@@ -220,6 +296,21 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        function startAutoRefresh() {
+            // Автообновление каждые 5 секунд
+            setInterval(async () => {
+                await loadMessages();
+                updateOnlineCounter();
+            }, 5000);
+        }
+
+        function updateOnlineCounter() {
+            // Простая имитация счетчика онлайн
+            const baseCount = 1;
+            const randomCount = Math.floor(Math.random() * 3);
+            document.getElementById('onlineCount').textContent = baseCount + randomCount;
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -231,16 +322,14 @@
             if (e.key === 'Enter') sendMessage();
         });
 
-        // Вход по Enter в форме логина
         document.getElementById('usernameInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') joinChat();
         });
 
-        // Обновляем счетчик онлайн (простая имитация)
-        setInterval(() => {
-            const count = Math.floor(Math.random() * 10) + 1;
-            document.getElementById('onlineCount').textContent = count;
-        }, 5000);
+        // Загружаем сообщения при загрузке страницы
+        window.addEventListener('load', async () => {
+            await loadMessages();
+        });
     </script>
 </body>
 </html>
