@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>💬 Простой Рабочий Чат</title>
+    <title>💬 Простой Чат</title>
     <style>
         body { font-family: Arial; background: #667eea; padding: 20px; margin: 0; }
         .chat { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
@@ -18,16 +18,13 @@
         button:hover { background: #5a6fd8; }
         .info { background: #d4edda; color: #155724; padding: 12px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
     </style>
-    
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
 </head>
 <body>
     <div class="chat">
-        <h2>💬 Простой Общий Чат</h2>
-        <div class="info" id="status">
-            🔄 Подключаемся...
+        <h2>💬 Простой Чат</h2>
+        <div class="info">
+            💾 Сообщения сохраняются в браузере<br>
+            🔄 Автообновление каждые 3 секунды
         </div>
         
         <div class="input-group">
@@ -37,36 +34,14 @@
         <button onclick="sendMessage()">Отправить сообщение</button>
         
         <div class="messages" id="messagesContainer">
-            <div style="text-align: center; color: #666; padding: 20px;">Загрузка сообщений...</div>
+            <div style="text-align: center; color: #666; padding: 20px;">Пока нет сообщений</div>
         </div>
     </div>
 
     <script>
-        // Firebase configuration - БЕЗОПАСНО, можно публиковать
-        const firebaseConfig = {
-            apiKey: "AIzaSyCZNAjHdN4wjUtivXp6W-6dHnCg1VcJ8eU",
-            authDomain: "public-chat-demo-12345.firebaseapp.com",
-            databaseURL: "https://public-chat-demo-12345-default-rtdb.firebaseio.com",
-            projectId: "public-chat-demo-12345",
-            storageBucket: "public-chat-demo-12345.firebasestorage.app",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef123456"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        let isConnected = false;
-
-        // Проверяем подключение
-        database.ref('.info/connected').on('value', (snapshot) => {
-            isConnected = snapshot.val() === true;
-            document.getElementById('status').textContent = isConnected 
-                ? '✅ ОБЩИЙ ЧАТ РАБОТАЕТ! Сообщения видны всем!' 
-                : '⚠️ Нет подключения';
-        });
-
+        // Ключ для хранения сообщений (один для всех)
+        const CHAT_KEY = 'simple-public-chat';
+        
         function sendMessage() {
             const name = document.getElementById('nameInput').value.trim();
             const text = document.getElementById('messageInput').value.trim();
@@ -75,68 +50,97 @@
                 alert('Введите имя и сообщение!');
                 return;
             }
-
-            if (!isConnected) {
-                alert('Нет подключения к интернету');
-                return;
-            }
-
-            // Сохраняем сообщение в Firebase
-            database.ref('messages').push().set({
+            
+            // Создаем сообщение
+            const message = {
+                id: Date.now() + Math.random(), // уникальный ID
                 username: name,
                 text: text,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
                 time: new Date().toLocaleTimeString('ru-RU'),
-                date: new Date().toLocaleDateString('ru-RU')
-            });
-
+                date: new Date().toLocaleDateString('ru-RU'),
+                timestamp: Date.now()
+            };
+            
+            // Получаем текущие сообщения
+            let messages = JSON.parse(localStorage.getItem(CHAT_KEY) || '[]');
+            
+            // Добавляем новое сообщение
+            messages.push(message);
+            
+            // Ограничиваем историю (последние 100 сообщений)
+            if (messages.length > 100) {
+                messages = messages.slice(-100);
+            }
+            
+            // Сохраняем обратно
+            localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+            
+            // Показываем сообщение
+            showMessages();
+            
+            // Очищаем поле ввода
             document.getElementById('messageInput').value = '';
+            
+            console.log('Сообщение сохранено:', message);
         }
-
-        // Слушаем новые сообщения в реальном времени
-        database.ref('messages').limitToLast(50).on('child_added', (snapshot) => {
-            const message = snapshot.val();
-            addMessageToChat(message);
-        });
-
-        function addMessageToChat(message) {
+        
+        function showMessages() {
+            // Загружаем сообщения из localStorage
+            const messages = JSON.parse(localStorage.getItem(CHAT_KEY) || '[]');
             const container = document.getElementById('messagesContainer');
             
-            // Убираем сообщение о загрузке
-            if (container.querySelector('div') && container.querySelector('div').textContent.includes('Загрузка')) {
-                container.innerHTML = '';
+            // Если нет сообщений
+            if (messages.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Пока нет сообщений</div>';
+                return;
             }
-
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
-            messageDiv.innerHTML = `
-                <div class="message-header">
-                    <span class="username">${message.username}</span>
-                    <span class="time">${message.time} ${message.date}</span>
-                </div>
-                <div>${message.text}</div>
-            `;
             
-            container.appendChild(messageDiv);
+            // Сортируем по времени (новые внизу)
+            messages.sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Очищаем контейнер
+            container.innerHTML = '';
+            
+            // Добавляем каждое сообщение
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <span class="username">${escapeHtml(msg.username)}</span>
+                        <span class="time">${msg.time} ${msg.date}</span>
+                    </div>
+                    <div>${escapeHtml(msg.text)}</div>
+                `;
+                container.appendChild(messageDiv);
+            });
+            
+            // Прокручиваем вниз к новым сообщениям
             container.scrollTop = container.scrollHeight;
         }
-
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Автообновление каждые 3 секунды
+        setInterval(showMessages, 3000);
+        
         // Отправка по Enter
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 sendMessage();
             }
         });
-
-        // Загрузка существующих сообщений
-        database.ref('messages').limitToLast(50).once('value', (snapshot) => {
-            const messages = snapshot.val();
-            if (messages) {
-                Object.values(messages).forEach(message => {
-                    addMessageToChat(message);
-                });
-            }
-        });
+        
+        // Показываем сообщения при загрузке страницы
+        showMessages();
+        
+        // Логируем что все работает
+        console.log('Чат загружен! Ключ:', CHAT_KEY);
+        console.log('Сообщений в хранилище:', JSON.parse(localStorage.getItem(CHAT_KEY) || '[]').length);
     </script>
 </body>
 </html>
